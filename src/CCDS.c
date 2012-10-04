@@ -1084,7 +1084,8 @@ char GetCDSAnnotationForRefSeq_2(int i){
   z=0;
   while(z < (int)strlen(tr_seq) && !found){
          found=0;
-         if(Check_start_codon(z, tr_seq)){
+	//Non necessariamente il primo codine dell'annotazione deve essere ATG (issue #31)
+         //if(Check_start_codon(z, tr_seq)){
                 k=a_cds[r_index].rel_start-1;
                 p=z;
                 stop=0;
@@ -1098,7 +1099,7 @@ char GetCDSAnnotationForRefSeq_2(int i){
                 }
                 if(!stop && k == a_cds[r_index].rel_end)
                   found=1;
-         }
+         //}
          if(!found)
                 z++;
   }
@@ -1119,6 +1120,11 @@ char GetCDSAnnotationForRefSeq_2(int i){
          trs[i].start_c[z]=tr_seq[trs[i].ORF_start+z-1];
   }
   trs[i].start_c[z]='\0';
+
+  //Controllo presenza ATG (issue #31)
+   if(!(!strcmp(trs[i].start_c, "atg") || !strcmp(trs[i].start_c, "ATG")))
+         trs[i].no_ATG=1;
+
   for(z=0; z<3; z++){
          trs[i].stop_c[z]=tr_seq[trs[i].ORF_end+z-3];
   }
@@ -2968,6 +2974,40 @@ int SetREFToLongestTranscript(){
   }
 #endif
 
+//PRIMA SI RICERCA TRA I REFSEQ CHE SONO ANNOTATI nel file cds (vedi issue #32)
+i=0;
+
+  trs_length=0;
+  trs_exons=0;
+
+#ifndef EXON_LONGEST_REF
+  product=0;
+#endif
+
+  while(i<number_of_transcripts){
+	//Si considerano i soli full-lengths annotati con CDS
+	if(trs[i].abs_ORF_start != -1 && trs[i].abs_ORF_end != -1){
+#ifdef EXON_LONGEST_REF
+	 if((trs[i].type == 0 && trs[i].is_annotated == 1) && (trs[i].exons >= trs_exons && trs[i].length >= trs_length)){
+		trs_exons=trs[i].exons;
+		trs_length=trs[i].length;
+		index=i;
+	 }
+#else
+	 if(trs[i].type == 0 && trs[i].exons*min_E[i] > product) {
+		product=trs[i].exons*min_E[i];
+		index=i;
+	 }
+#endif
+	}
+	 i++;
+  }
+
+  if(index != -1){
+	 return index;
+  }
+//FINE DELLA RICERCA TRA I REFSEQ CHE SONO ANNOTATI
+
   i=0;
 
   trs_length=0;
@@ -2981,7 +3021,7 @@ int SetREFToLongestTranscript(){
 	//Si considerano i soli full-lengths annotati con CDS
 	if(trs[i].abs_ORF_start != -1 && trs[i].abs_ORF_end != -1){
 #ifdef EXON_LONGEST_REF
-	 if(trs[i].type == 0 && (trs[i].exons >= trs_exons && trs[i].length >= trs_length)){
+	 if((trs[i].type == 0 && trs[i].is_annotated == 0)  && (trs[i].exons >= trs_exons && trs[i].length >= trs_length)){
 		trs_exons=trs[i].exons;
 		trs_length=trs[i].length;
 		index=i;
